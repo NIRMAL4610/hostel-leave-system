@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Apply Leave</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma;
+            background: #f4f6f9;
+        }
+
+        .navbar {
+            background: #2a5298;
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            margin-left: 15px;
+        }
+
+        .container {
+            width: 420px;
+            margin: 40px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+
+        input[readonly] {
+            background: #eee;
+        }
+
+        textarea {
+            height: 80px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #2a5298;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1e3c72;
+        }
+
+        /* 🔄 Loader */
+        #loader {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        /* ✅ Popup */
+        #popup {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            justify-content: center;
+            align-items: center;
+        }
+
+        #popupContent {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+        }
+    </style>
+
+    <script>
+    function toggleFields() {
+        let type = document.getElementById("leave_type").value;
+        let toSection = document.getElementById("to_date_section");
+        let fromLabel = document.getElementById("from_date_label");
+
+        if (type === "Leave") {
+            toSection.style.display = "block";
+            fromLabel.innerText = "From Date";
+        } else {
+            toSection.style.display = "none";
+            fromLabel.innerText = "Date";
+        }
+    }
+
+    function handleSubmit(event) {
+        event.preventDefault();
+
+        document.getElementById("loader").style.display = "block";
+
+        let formData = new FormData(document.getElementById("leaveForm"));
+
+        fetch("/submit", {
+            method: "POST",
+            body: formData
+        })
+        .then(() => {
+            document.getElementById("loader").style.display = "none";
+            document.getElementById("popup").style.display = "flex";
+        });
+    }
+
+    function closePopup() {
+        document.getElementById("popup").style.display = "none";
+        location.reload();
+    }
+
+    window.onload = function() {
+        let today = new Date().toISOString().split("T")[0];
+
+        let fromDate = document.getElementsByName("from_date")[0];
+        let toDate = document.getElementsByName("to_date")[0];
+
+        fromDate.min = today;
+        if (toDate) toDate.min = today;
+
+        fromDate.addEventListener("change", function() {
+            if (toDate) toDate.min = fromDate.value;
+        });
+
+        toggleFields();
+    }
+    </script>
+
+</head>
+
+<body>
+
+<div class="navbar">
+    <div>📘 Hostel Leave System</div>
+    <div>
+        <a href="/status">My Status</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+
+<div class="container">
+
+    <h2>📝 Apply Leave / Outing</h2>
+
+    <form id="leaveForm" onsubmit="handleSubmit(event)">
+
+        <!-- 🧾 AUTO FILLED -->
+        <label>Name</label>
+        <input type="text" value="{{ student['Name'] }}" readonly>
+
+        <label>Register Number</label>
+        <input type="text" value="{{ student['RegNo'] }}" readonly>
+
+        <label>Room</label>
+        <input type="text" value="{{ student['Room'] }}" readonly>
+
+        <label>Leave Type</label>
+        <select name="leave_type" id="leave_type" onchange="toggleFields()" required>
+            <option value="">Select</option>
+            <option value="Outing">Outing</option>
+            <option value="Leave">Leave</option>
+        </select>
+
+        <label id="from_date_label">Date</label>
+        <input type="date" name="from_date" required>
+
+        <div id="to_date_section" style="display:none;">
+            <label>To Date</label>
+            <input type="date" name="to_date">
+        </div>
+
+        <label>Visiting Place</label>
+        <input type="text" name="place" required>
+
+        <label>Reason</label>
+        <textarea name="reason" required></textarea>
+
+        <button type="submit">Submit Request</button>
+
+    </form>
+
+    <div id="loader">⏳ Submitting...</div>
+
+</div>
+
+<!-- ✅ SUCCESS POPUP -->
+<div id="popup">
+    <div id="popupContent">
+        <h2>✅ Request Submitted</h2>
+        <button onclick="closePopup()">OK</button>
+    </div>
+</div>
+
+</body>
+</html>

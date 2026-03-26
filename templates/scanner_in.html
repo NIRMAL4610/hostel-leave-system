@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scanner IN</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI';
+            display: flex;
+            height: 100vh;
+            background: #f4f6f9;
+        }
+
+        /* LEFT SIDE */
+        #scanner {
+            width: 50%;
+            background: #1e1e2f;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        #reader {
+            width: 90%;
+            margin: auto;
+            margin-top: 30px;
+        }
+
+        /* RIGHT SIDE */
+        #resultBox {
+            width: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .card {
+            background: white;
+            width: 70%;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            transition: 0.3s;
+        }
+
+        .card img {
+            width: 180px;
+            height: 180px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            object-fit: cover;
+        }
+
+        .status {
+            font-size: 22px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        /* 🔥 Glow Effects */
+        .success-glow {
+            box-shadow: 0 0 25px rgba(0, 255, 0, 0.7);
+            border: 2px solid green;
+            animation: glowGreen 0.6s ease-in-out;
+        }
+
+        .error-glow {
+            box-shadow: 0 0 25px rgba(255, 0, 0, 0.7);
+            border: 2px solid red;
+            animation: glowRed 0.6s ease-in-out;
+        }
+
+        .warning-glow {
+            box-shadow: 0 0 25px rgba(255, 165, 0, 0.7);
+            border: 2px solid orange;
+            animation: glowOrange 0.6s ease-in-out;
+        }
+
+        /* 🔥 Animations */
+        @keyframes glowGreen {
+            0% { transform: scale(0.95); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes glowRed {
+            0% { transform: scale(0.95); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes glowOrange {
+            0% { transform: scale(0.95); }
+            100% { transform: scale(1); }
+        }
+
+        .green { color: green; }
+        .red { color: red; }
+        .orange { color: orange; }
+        .gray { color: gray; }
+
+        .info {
+            font-size: 18px;
+            color: #333;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<!-- LEFT: SCANNER -->
+<div id="scanner">
+    <h2>📥 Entry Scanner</h2>
+    <div id="reader"></div>
+</div>
+
+<!-- RIGHT: RESULT -->
+<div id="resultBox">
+    <div class="card" id="resultCard">
+        <img src="https://cdn-icons-png.flaticon.com/512/1828/1828843.png">
+        <h3>Scan QR Code</h3>
+        <p class="info">Waiting for scan...</p>
+    </div>
+</div>
+
+<script>
+let scanned = false;
+
+function onScanSuccess(decodedText) {
+    if (scanned) return;
+    scanned = true;
+
+    // Reset after 3 sec
+    setTimeout(() => {
+        scanned = false;
+    }, 3000);
+
+    let scanInUrl = decodedText.replace("scan_out", "scan_in");
+
+    fetch(scanInUrl)
+        .then(res => res.json())
+        .then(data => {
+
+            let colorClass = "gray";
+            let glowClass = "";
+
+            if (data.status === "allowed") {
+                colorClass = "green";
+                glowClass = "success-glow";
+            }
+            else if (data.status === "denied") {
+                colorClass = "red";
+                glowClass = "error-glow";
+            }
+            else if (data.status === "warning") {
+                colorClass = "orange";
+                glowClass = "warning-glow";
+            }
+
+            let card = document.getElementById("resultCard");
+
+            card.className = "card " + glowClass;
+
+            card.innerHTML = `
+                <img src="/static/${data.photo}">
+                <div class="status ${colorClass}">${data.message}</div>
+                <div class="info">${data.name}</div>
+                <div class="info">${data.regno}</div>
+            `;
+        })
+        .catch(() => {
+            document.getElementById("resultCard").innerHTML = `
+                <div class="status red">❌ Server Error</div>
+            `;
+        });
+}
+
+// START SCANNER
+let html5QrcodeScanner = new Html5QrcodeScanner(
+    "reader",
+    {
+        fps: 10,
+        qrbox: { width: 300, height: 300 }
+    }
+);
+
+html5QrcodeScanner.render(onScanSuccess);
+</script>
+
+</body>
+</html>

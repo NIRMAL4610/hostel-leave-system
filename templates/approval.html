@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Professor Approval Panel</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI';
+            background: #f4f6f9;
+        }
+
+        .navbar {
+            background: #2a5298;
+            color: white;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .container {
+            width: 95%;
+            margin: 20px auto;
+        }
+
+        /* 🔍 FILTER BAR */
+        .filters {
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        input, select {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th {
+            background: #2a5298;
+            color: white;
+            padding: 12px;
+        }
+
+        td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        tr:hover {
+            background: #f1f1f1;
+        }
+
+        img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+        }
+
+        .statusCell {
+            font-weight: bold;
+        }
+
+        .btn {
+            padding: 5px 10px;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+
+        .approve { background: green; }
+        .reject { background: red; }
+
+    </style>
+</head>
+
+<body>
+
+<div class="navbar">
+    🎓 Professor Approval Panel
+</div>
+
+<div class="container">
+
+    <!-- 🔍 SEARCH + FILTER -->
+    <div class="filters">
+        <input type="text" id="search" placeholder="Search Name / RegNo..." onkeyup="filterTable()">
+
+        <select id="statusFilter" onchange="filterTable()">
+            <option value="">All</option>
+            <option value="Pending">Pending</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+        </select>
+    </div>
+
+    <!-- 📋 TABLE -->
+    <table id="table">
+        <tr>
+            <th>Photo</th>
+            <th>Name</th>
+            <th>RegNo</th>
+            <th>Type</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+
+        {% for row in records %}
+        <tr>
+            <td><img src="/static/{{ row['Photo'] }}"></td>
+            <td>{{ row['Name'] }}</td>
+            <td>{{ row['RegNo'] }}</td>
+            <td>{{ row['Leave Type'] }}</td>
+            <td>{{ row['From Date'] }}</td>
+            <td>{{ row['To Date'] }}</td>
+
+            <td class="statusCell">{{ row['Status'] }}</td>
+
+            <td>
+                {% if row['Status'] == 'Pending' %}
+                    <button class="btn approve" onclick="approve({{ loop.index0 }}, this)">Approve</button>
+                    <button class="btn reject" onclick="reject({{ loop.index0 }}, this)">Reject</button>
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+
+</div>
+
+<script>
+function filterTable() {
+    let search = document.getElementById("search").value.toLowerCase();
+    let status = document.getElementById("statusFilter").value;
+
+    let rows = document.querySelectorAll("#table tr");
+
+    rows.forEach((row, i) => {
+        if (i === 0) return;
+
+        let text = row.innerText.toLowerCase();
+        let statusCell = row.querySelector(".statusCell").innerText;
+
+        let matchSearch = text.includes(search);
+        let matchStatus = (status === "" || statusCell === status);
+
+        row.style.display = (matchSearch && matchStatus) ? "" : "none";
+    });
+}
+
+function approve(index, btn) {
+    fetch(`/approve/${index}`)
+    .then(() => {
+        updateRow(btn, "Approved");
+    });
+}
+
+function reject(index, btn) {
+    fetch(`/reject/${index}`)
+    .then(() => {
+        updateRow(btn, "Rejected");
+    });
+}
+
+function updateRow(btn, status) {
+    let row = btn.closest("tr");
+    row.querySelector(".statusCell").innerText = status;
+    btn.parentElement.innerHTML = "-";
+}
+</script>
+
+</body>
+</html>
