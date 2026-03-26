@@ -7,36 +7,80 @@ import qrcode
 import uuid
 from flask import jsonify
 from flask import session
+import sqlite3
 
 
 
 app = Flask(__name__)
 
-EXCEL_FILE = "leave_records.xlsx"
+DB_FILE = "database.db"
 
-# Create Excel file if it doesn't exist
-if not os.path.exists(EXCEL_FILE):
-    df = pd.DataFrame(columns=[
-        "Leave Type", "Name", "RegNo", "Room",
-        "Place", "From Date", "From Time",
-        "To Date", "To Time", "Reason",
-        "Status", "QR ID", "QR File",
-        "Exit Time", "Entry Time", "Current Status",
-    ])
-    df.to_excel(EXCEL_FILE, index=False)
+def get_db():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-import pandas as pd
-import os
+def init_db():
+    conn = get_db()
+    cursor = conn.cursor()
 
-data = [
-    {"RegNo": "24MEI10149", "Name": "R Nirmal Rajan", "Password": "pass123", "Block": 5,"Room": "B311", "Photo": "photos/24MEI10149.jpeg"},
-    {"RegNo": "24MEI10050", "Name": "Prasanna Verma",  "Password": "pass456", "Block": 5,"Room": "A102", "Photo": "photos/24MEI10050.jpeg"},
-    {"RegNo": "24BCE10739", "Name": "Devansh Patel", "Password": "pass789", "Block": 5, "Room": "B311", "Photo": "photos/24BCE10739.jpeg"}
+    # Students Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS students (
+        RegNo TEXT PRIMARY KEY,
+        Name TEXT,
+        Password TEXT,
+        Block INTEGER,
+        Room TEXT,
+        Photo TEXT
+    )
+    """)
 
-]
+    # Leave Records Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS leave_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        LeaveType TEXT,
+        Name TEXT,
+        RegNo TEXT,
+        Room TEXT,
+        Place TEXT,
+        FromDate TEXT,
+        ToDate TEXT,
+        Reason TEXT,
+        Status TEXT,
+        QRID TEXT,
+        QRFile TEXT,
+        ExitTime TEXT,
+        EntryTime TEXT,
+        CurrentStatus TEXT,
+        Photo TEXT
+    )
+    """)
 
-df = pd.DataFrame(data)
-df.to_excel("students.xlsx", index=False)
+    conn.commit()
+    conn.close()
+
+
+def seed_students():
+    conn = get_db()
+    cursor = conn.cursor()
+
+    students = [
+        ("24MEI10149", "R Nirmal Rajan", "pass123", 5, "B311", "photos/24MEI10149.jpeg"),
+        ("24MEI10050", "Prasanna Verma", "pass456", 5, "A102", "photos/24MEI10050.jpeg"),
+        ("24BCE10739", "Devansh Patel", "pass789", 5, "B311", "photos/24BCE10739.jpeg")
+    ]
+
+    for s in students:
+        cursor.execute("""
+        INSERT OR IGNORE INTO students VALUES (?, ?, ?, ?, ?, ?)
+        """, s)
+
+    conn.commit()
+    conn.close()
+
+seed_students()
 
 
 def ensure_columns(df):
@@ -51,12 +95,17 @@ def ensure_columns(df):
 @app.route('/')
 def home():
     if 'user' not in session:
-        return redirect('/login')   # 🔥 THIS LINE IS IMPORTANT
+        return redirect('/login')
 
     regno = session['user']
 
-    df = pd.read_excel("students.xlsx")
-    student = df[df['RegNo'].astype(str) == regno].iloc[0]
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM students WHERE RegNo=?", (regno,))
+    student = cursor.fetchone()
+
+    conn.close()
 
     return render_template("apply.html", student=student)
 
@@ -68,11 +117,15 @@ def login():
         regno = request.form['regno']
         password = request.form['password']
 
-        df = pd.read_excel("students.xlsx")
+        conn = get_db()
+        cursor = conn.cursor()
 
-        student = df[(df['RegNo'].astype(str) == regno) & (df['Password'] == password)]
+        cursor.execute("SELECT * FROM students WHERE RegNo=? AND Password=?", (regno, password))
+        student = cursor.fetchone()
 
-        if not student.empty:
+        conn.close()
+
+        if student:
             session['user'] = regno
             return redirect('/')
 
@@ -87,82 +140,63 @@ def logout():
 
 @app.route('/submit', methods=['POST'])
 def submit():
-
     if 'user' not in session:
         return redirect('/login')
 
     regno = session['user']
-    session['user'] = regno
 
-    students_df = pd.read_excel("students.xlsx")
-    student = students_df[students_df['RegNo'].astype(str) == regno].iloc[0]
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM students WHERE RegNo=?", (regno,))
+    student = cursor.fetchone()
+
     leave_type = request.form['leave_type']
     from_date = request.form['from_date']
-    to_date = request.form.get('to_date')
+    to_date = request.form.get('to_date') or "-"
 
-    if leave_type == "Leave" and to_date:
-        final_to_date = to_date
-    else:
-        final_to_date = "-"
+    cursor.execute("""
+    INSERT INTO leave_records
+    (LeaveType, Name, RegNo, Room, Place, FromDate, ToDate, Reason,
+     Status, QRID, QRFile, ExitTime, EntryTime, CurrentStatus, Photo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        leave_type,
+        student["Name"],
+        regno,
+        student["Room"],
+        request.form['place'],
+        from_date,
+        to_date,
+        request.form['reason'],
+        "Pending",
+        "",
+        "",
+        "",
+        "",
+        "Inside",
+        student["Photo"]
+    ))
 
-    data = {
-        "Leave Type": leave_type,
-        "Name": student['Name'],
-        "RegNo": regno,
-        "Room": student['Room'],
-        "Place": request.form['place'],
-        "From Date": from_date,
-        "From Time": "-",
-        "To Date": final_to_date,
-        "To Time": "-",
-        "Reason": request.form['reason'],
-        "Status": "Pending",
-        "QR ID": "",
-        "QR File": "",
-        "Exit Time": "",
-        "Entry Time": "",
-        "Current Status": "Inside",
-        "Photo": student['Photo']
-    }
-
-    df = pd.read_excel(EXCEL_FILE)
-    df = pd.concat([df, pd.DataFrame([data])], ignore_index=True)
-    df.to_excel(EXCEL_FILE, index=False)
+    conn.commit()
+    conn.close()
 
     return "<h3>Request Submitted Successfully ✅</h3>"
 
 @app.route('/status')
 def status():
-
     if 'user' not in session:
         return redirect('/login')
 
     regno = session['user']
 
-    df = pd.read_excel(EXCEL_FILE)
-    student_data = df[df['RegNo'].astype(str) == regno]
+    conn = get_db()
+    cursor = conn.cursor()
 
-    records = student_data.to_dict(orient='records')
+    cursor.execute("SELECT * FROM leave_records WHERE RegNo=?", (regno,))
+    records = cursor.fetchall()
 
-    current_date = datetime.now().date()
-
-    for record in records:
-
-        record["QR Expired"] = False
-
-        if record["Status"] == "Approved":
-
-            if record["To Date"] != "-" and pd.notna(record["To Date"]):
-                end_date = datetime.strptime(
-                    record["To Date"], "%Y-%m-%d"
-                ).date()
-            else:
-                end_date = datetime.strptime(
-                    record["From Date"], "%Y-%m-%d"
-                ).date()
-
-            if current_date > end_date:
-                record["QR Expired"] = True
+    conn.close()
 
     return render_template("status.html", records=records)
 
@@ -183,74 +217,32 @@ def scanner_out_page():
 @app.route('/scan_out/<qr_id>')
 def scan_out(qr_id):
 
-    df = pd.read_excel(EXCEL_FILE)
-    df.columns = df.columns.str.strip()
+    conn = get_db()
+    cursor = conn.cursor()
 
-    record_df = df[df['QR ID'].astype(str) == str(qr_id)]
+    cursor.execute("SELECT * FROM leave_records WHERE QRID=?", (qr_id,))
+    record = cursor.fetchone()
 
-    if record_df.empty:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid QR Code",
-            "name": "",
-            "regno": "",
-            "photo": ""
-        })
+    if not record:
+        return jsonify({"status": "error", "message": "Invalid QR Code"})
 
-    index = record_df.index[0]
-    record = record_df.iloc[0]
-
-    # ✅ Date Fix
-    from_date_raw = record["From Date"]
-
-    if pd.isna(from_date_raw):
-        return jsonify({
-            "status": "error",
-            "message": "Invalid Date",
-            "name": record["Name"],
-            "regno": record["RegNo"],
-            "photo": record["Photo"]
-        })
-
-    from_date = pd.to_datetime(from_date_raw).date()
     today = datetime.now().date()
+    from_date = datetime.strptime(record["FromDate"], "%Y-%m-%d").date()
 
     if today != from_date:
-        return jsonify({
-            "status": "denied",
-            "message": "Not allowed today",
-            "name": record["Name"],
-            "regno": record["RegNo"],
-            "photo": record["Photo"]
-        })
+        return jsonify({"status": "denied", "message": "Not allowed today"})
 
-    status = str(record.get("Current Status", "")).strip()
+    if record["CurrentStatus"] == "Out":
+        return jsonify({"status": "warning", "message": "Already Exited"})
 
-    if status == "Out":
-        return jsonify({
-            "status": "warning",
-            "message": "Already Exited",
-            "name": record["Name"],
-            "regno": record["RegNo"],
-            "photo": record["Photo"]
-        })
+    cursor.execute("""
+    UPDATE leave_records
+    SET ExitTime=?, CurrentStatus=?
+    WHERE QRID=?
+    """, (datetime.now().strftime("%Y-%m-%d %H:%M"), "Out", qr_id))
 
-    if status == "Returned":
-        return jsonify({
-            "status": "error",
-            "message": "QR Expired",
-            "name": record["Name"],
-            "regno": record["RegNo"],
-            "photo": record["Photo"]
-        })
-
-    # ✅ ALLOW EXIT
-    current_time = datetime.now()
-
-    df.at[index, "Exit Time"] = current_time.strftime("%Y-%m-%d %H:%M")
-    df.at[index, "Current Status"] = "Out"
-
-    df.to_excel(EXCEL_FILE, index=False)
+    conn.commit()
+    conn.close()
 
     return jsonify({
         "status": "allowed",
@@ -404,5 +396,7 @@ def dashboard():
     </ul>
     """
 
+# ================== RUN ==================
 if __name__ == '__main__':
-    app.run()
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
