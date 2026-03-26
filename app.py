@@ -13,6 +13,8 @@ import sqlite3
 
 app = Flask(__name__)
 
+init_db()
+seed_students()
 DB_FILE = "database.db"
 
 def get_db():
@@ -202,8 +204,14 @@ def status():
 
 @app.route('/approval')
 def approval():
-    df = pd.read_excel(EXCEL_FILE)
-    records = df.to_dict(orient='records')
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM leave_records")
+    records = cursor.fetchall()
+
+    conn.close()
+
     return render_template("approval.html", records=records)
 
 @app.route('/scanner_in')
@@ -255,12 +263,13 @@ def scan_out(qr_id):
 @app.route('/scan_in/<qr_id>')
 def scan_in(qr_id):
 
-    df = pd.read_excel(EXCEL_FILE)
-    df.columns = df.columns.str.strip()
+    conn = get_db()
+    cursor = conn.cursor()
 
-    record_df = df[df['QR ID'].astype(str) == str(qr_id)]
+    cursor.execute("SELECT * FROM leave_records WHERE QRID=?", (qr_id,))
+    record = cursor.fetchone()
 
-    if record_df.empty:
+    if not record:
         return jsonify({
             "status": "denied",
             "message": "Invalid QR Code",
@@ -269,12 +278,7 @@ def scan_in(qr_id):
             "photo": ""
         })
 
-    index = record_df.index[0]
-    record = record_df.iloc[0]
-
-    status = str(record.get("Current Status", "")).strip()
-
-    if status != "Out":
+    if record["CurrentStatus"] != "Out":
         return jsonify({
             "status": "denied",
             "message": "Exit not recorded",
@@ -283,12 +287,14 @@ def scan_in(qr_id):
             "photo": record["Photo"]
         })
 
-    current_time = datetime.now()
+    cursor.execute("""
+    UPDATE leave_records
+    SET EntryTime=?, CurrentStatus=?
+    WHERE QRID=?
+    """, (datetime.now().strftime("%Y-%m-%d %H:%M"), "Returned", qr_id))
 
-    df.at[index, "Entry Time"] = current_time.strftime("%Y-%m-%d %H:%M")
-    df.at[index, "Current Status"] = "Returned"
-
-    df.to_excel(EXCEL_FILE, index=False)
+    conn.commit()
+    conn.close()
 
     return jsonify({
         "status": "allowed",
@@ -298,32 +304,22 @@ def scan_in(qr_id):
         "photo": record["Photo"]
     })
 
-@app.route('/approve/<int:index>')
-def approve(index):
+@app.route('/approve/<int:id>')
+def approve(id):
 
-    df = pd.read_excel(EXCEL_FILE)
+    conn = get_db()
+    cursor = conn.cursor()
 
-    if df.loc[index, "Status"] != "Approved":
+    cursor.execute("SELECT * FROM leave_records WHERE id=?", (id,))
+    record = cursor.fetchone()
 
-        df.loc[index, "Status"] = "Approved"
+    if record["Status"] != "Approved":
 
         qr_id = str(uuid.uuid4())
-        df.loc[index, "QR ID"] = qr_id
 
         verify_url = request.host_url.rstrip('/') + "/scan_out/" + qr_id
-        print("QR URL:", verify_url)  # DEBUG
 
-
-        qr = qrcode.QRCode(
-            version=1,
-            box_size=10,
-            border=5
-        )
-
-        qr.add_data(verify_url)
-        qr.make(fit=True)
-
-        img = qr.make_image(fill_color="black", back_color="white")
+        qr = qrcode.make(verify_url)
 
         qr_folder = "static/qr_codes"
         os.makedirs(qr_folder, exist_ok=True)
@@ -331,23 +327,33 @@ def approve(index):
         qr_filename = f"qr_{qr_id}.png"
         qr_path = os.path.join(qr_folder, qr_filename)
 
-        img.save(qr_path)
+        qr.save(qr_path)
 
-        df.loc[index, "QR File"] = f"qr_codes/{qr_filename}"
+        cursor.execute("""
+        UPDATE leave_records
+        SET Status=?, QRID=?, QRFile=?
+        WHERE id=?
+        """, ("Approved", qr_id, f"qr_codes/{qr_filename}", id))
 
-    df.to_excel(EXCEL_FILE, index=False)
+    conn.commit()
+    conn.close()
 
     return redirect('/approval')
 
-@app.route('/reject/<int:index>')
-def reject(index):
+@app.route('/reject/<int:id>')
+def reject(id):
 
-    df = pd.read_excel(EXCEL_FILE)
+    conn = get_db()
+    cursor = conn.cursor()
 
-    if df.loc[index, "Status"] == "Pending":
-        df.loc[index, "Status"] = "Rejected"
+    cursor.execute("""
+    UPDATE leave_records
+    SET Status='Rejected'
+    WHERE id=? AND Status='Pending'
+    """, (id,))
 
-    df.to_excel(EXCEL_FILE, index=False)
+    conn.commit()
+    conn.close()
 
     return redirect('/approval')
 
@@ -366,26 +372,30 @@ def download_qr(filename):
 @app.route('/dashboard')
 def dashboard():
 
-    df = pd.read_excel(EXCEL_FILE)
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM leave_records")
+    rows = cursor.fetchall()
 
     overstay_list = []
 
-    for i, row in df.iterrows():
-        if row["Current Status"] == "Out":
-
-            if row["To Date"] != "-" and pd.notna(row["To Date"]):
-                end_date = datetime.strptime(row["To Date"], "%Y-%m-%d")
+    for row in rows:
+        if row["CurrentStatus"] == "Out":
+            if row["ToDate"] != "-" and row["ToDate"]:
+                end_date = datetime.strptime(row["ToDate"], "%Y-%m-%d")
 
                 if datetime.now().date() > end_date.date():
                     overstay_list.append(row["Name"])
 
-    total_out = df[df['Current Status'] == 'Out'].shape[0]
-    returned = df[df['Current Status'] == 'Returned'].shape[0]
-    pending = df[df['Status'] == 'Pending'].shape[0]
+    total_out = len([r for r in rows if r["CurrentStatus"] == "Out"])
+    returned = len([r for r in rows if r["CurrentStatus"] == "Returned"])
+    pending = len([r for r in rows if r["Status"] == "Pending"])
+
+    conn.close()
 
     return f"""
     <h2>📊 Dashboard</h2>
-
     <p>🟢 Students Outside: {total_out}</p>
     <p>🔵 Returned Students: {returned}</p>
     <p>⏳ Pending Requests: {pending}</p>
