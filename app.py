@@ -15,8 +15,9 @@ app = Flask(__name__)
 
 init_db()
 seed_students()
-DB_FILE = "database.db"
 
+DB_FILE = "database.db"
+DB_FILE = os.path.join(os.getcwd(), "database.db")
 def get_db():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
