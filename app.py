@@ -15,7 +15,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev_secret")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 def get_db():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(DATABASE_URL, sslmode='require')
 
 def get_cursor(conn):
     return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
