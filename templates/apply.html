@@ -69,18 +69,21 @@
             cursor: pointer;
         }
 
+        button:disabled {
+            background: gray;
+            cursor: not-allowed;
+        }
+
         button:hover {
             background: #1e3c72;
         }
 
-        /* 🔄 Loader */
         #loader {
             display: none;
             text-align: center;
             margin-top: 10px;
         }
 
-        /* ✅ Popup */
         #popup {
             display: none;
             position: fixed;
@@ -117,6 +120,9 @@
     function handleSubmit(event) {
         event.preventDefault();
 
+        let btn = document.querySelector("button[type='submit']");
+        btn.disabled = true;
+
         document.getElementById("loader").style.display = "block";
 
         let formData = new FormData(document.getElementById("leaveForm"));
@@ -125,9 +131,15 @@
             method: "POST",
             body: formData
         })
+        .then(res => res.text())
         .then(() => {
             document.getElementById("loader").style.display = "none";
             document.getElementById("popup").style.display = "flex";
+        })
+        .catch(() => {
+            document.getElementById("loader").style.display = "none";
+            alert("❌ Submission failed");
+            btn.disabled = false;
         });
     }
 
@@ -171,15 +183,20 @@
 
     <form id="leaveForm" onsubmit="handleSubmit(event)">
 
-        <!-- 🧾 AUTO FILLED -->
+        <!-- ✅ AUTO FILLED -->
         <label>Name</label>
-        <input type="text" value="{{ student['Name'] }}" readonly>
+        <input type="text" value="{{ student.Name }}" readonly>
 
         <label>Register Number</label>
-        <input type="text" value="{{ student['RegNo'] }}" readonly>
+        <input type="text" value="{{ student.RegNo }}" readonly>
 
         <label>Room</label>
-        <input type="text" value="{{ student['Room'] }}" readonly>
+        <input type="text" value="{{ student.Room }}" readonly>
+
+        <!-- (Optional: hidden fields if needed later) -->
+        <input type="hidden" name="regno" value="{{ student.RegNo }}">
+        <input type="hidden" name="name" value="{{ student.Name }}">
+        <input type="hidden" name="room" value="{{ student.Room }}">
 
         <label>Leave Type</label>
         <select name="leave_type" id="leave_type" onchange="toggleFields()" required>
