@@ -186,9 +186,7 @@ function generateCaptcha() {
 
 function validateCaptcha() {
     let userInput = document.getElementById("captchaInput").value;
-    let errorBox = document.getElementById("captchaInput").addEventListener("input", () => {
-    document.getElementById("error").innerText = "";
-});
+    let errorBox = document.getElementById("error");
 
     if (userInput !== currentCaptcha) {
         errorBox.innerText = "❌ Incorrect Captcha";
@@ -199,6 +197,14 @@ function validateCaptcha() {
     return true;
 }
 
+// Clear error while typing
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("captchaInput").addEventListener("input", () => {
+        document.getElementById("error").innerText = "";
+    });
+});
+
+// Generate captcha on load
 window.onload = generateCaptcha;
 </script>
 
