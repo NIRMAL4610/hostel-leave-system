@@ -168,7 +168,7 @@
 <script>
 
 function disableBtn() {
-    document.querySelector("button").disabled = true;
+    document.querySelector("button[type='submit']").disabled = true;
 }
 
 function handleSubmit() {
@@ -204,6 +204,7 @@ function validateCaptcha() {
 
     if (userInput === "" || userInput !== currentCaptcha) {
         errorBox.innerText = "❌ Incorrect Captcha";
+        document.getElementById("captchaInput").value = "";
         generateCaptcha();
         return false;
     }
