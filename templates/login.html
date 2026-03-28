@@ -2,11 +2,12 @@
 <html>
 <head>
     <title>Student Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
         body {
             margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             height: 100vh;
             background: linear-gradient(135deg, #1e3c72, #2a5298);
             display: flex;
@@ -15,17 +16,24 @@
         }
 
         .login-box {
-            background: white;
-            padding: 40px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px);
+            padding: 35px;
             width: 350px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border-radius: 15px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
             text-align: center;
+            color: white;
+            animation: fadeIn 0.6s ease-in-out;
         }
 
-        .login-box h2 {
-            margin-bottom: 25px;
-            color: #333;
+        @keyframes fadeIn {
+            from {opacity: 0; transform: translateY(20px);}
+            to {opacity: 1; transform: translateY(0);}
+        }
+
+        h2 {
+            margin-bottom: 20px;
         }
 
         .input-group {
@@ -34,23 +42,16 @@
         }
 
         .input-group label {
-            font-weight: 500;
-            font-size: 14px;
-            color: #555;
+            font-size: 13px;
         }
 
         .input-group input {
             width: 100%;
             padding: 10px;
             margin-top: 5px;
-            border: 1px solid #ccc;
+            border: none;
             border-radius: 6px;
             outline: none;
-        }
-
-        .input-group input:focus {
-            border-color: #2a5298;
-            box-shadow: 0 0 5px rgba(42,82,152,0.4);
         }
 
         .password-box {
@@ -60,52 +61,67 @@
         .toggle {
             position: absolute;
             right: 10px;
-            top: 35px;
+            top: 34px;
             cursor: pointer;
-            font-size: 14px;
-            color: #2a5298;
         }
 
         .captcha-box {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-top: 10px;
+            justify-content: space-between;
+            margin-top: 8px;
         }
 
         .captcha-text {
+            background: white;
+            color: black;
+            padding: 5px 12px;
+            border-radius: 6px;
             font-weight: bold;
+            letter-spacing: 3px;
+        }
+
+        .refresh-btn {
+            background: transparent;
+            border: none;
+            color: white;
             font-size: 18px;
-            background: #eee;
-            padding: 5px 10px;
-            border-radius: 5px;
-            letter-spacing: 2px;
+            cursor: pointer;
         }
 
         button {
             width: 100%;
             padding: 12px;
-            background: #2a5298;
-            color: white;
+            margin-top: 15px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
+            background: #00c6ff;
+            background: linear-gradient(to right, #00c6ff, #0072ff);
+            color: white;
             font-size: 16px;
             cursor: pointer;
-            margin-top: 15px;
+            transition: 0.3s;
         }
 
         button:hover {
-            background: #1e3c72;
+            transform: scale(1.03);
         }
 
         .error {
-            color: red;
+            color: #ff6b6b;
             font-size: 14px;
             margin-top: 10px;
         }
-    </style>
 
+        @media (max-width: 400px) {
+            .login-box {
+                width: 90%;
+                padding: 25px;
+            }
+        }
+    </style>
 </head>
+
 <body>
 
 <div class="login-box">
@@ -131,7 +147,7 @@
 
             <div class="captcha-box">
                 <span id="captcha" class="captcha-text"></span>
-                <button type="button" onclick="generateCaptcha()">↻</button>
+                <button type="button" class="refresh-btn" onclick="generateCaptcha()">↻</button>
             </div>
 
             <input type="text" id="captchaInput" placeholder="Enter Captcha" required>
@@ -151,7 +167,6 @@ function togglePassword() {
     pwd.type = (pwd.type === "password") ? "text" : "password";
 }
 
-// CAPTCHA
 let currentCaptcha = "";
 
 function generateCaptcha() {
@@ -178,7 +193,6 @@ function validateCaptcha() {
     return true;
 }
 
-// Generate on load
 window.onload = generateCaptcha;
 </script>
 
