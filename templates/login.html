@@ -153,7 +153,9 @@
             <input type="text" id="captchaInput" placeholder="Enter Captcha" required>
         </div>
 
-        <div id="error" class="error"></div>
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
 
         <button type="submit">Login</button>
 
