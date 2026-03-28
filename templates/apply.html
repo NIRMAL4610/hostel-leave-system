@@ -51,10 +51,6 @@
             border: 1px solid #ccc;
         }
 
-        input[readonly] {
-            background: #eee;
-        }
-
         textarea {
             height: 80px;
         }
@@ -182,21 +178,6 @@
     <h2>📝 Apply Leave / Outing</h2>
 
     <form id="leaveForm" onsubmit="handleSubmit(event)">
-
-        <!-- ✅ AUTO FILLED -->
-        <label>Name</label>
-        <input type="text" value="{{ student.Name }}" readonly>
-
-        <label>Register Number</label>
-        <input type="text" value="{{ student.RegNo }}" readonly>
-
-        <label>Room</label>
-        <input type="text" value="{{ student.Room }}" readonly>
-
-        <!-- (Optional: hidden fields if needed later) -->
-        <input type="hidden" name="regno" value="{{ student.RegNo }}">
-        <input type="hidden" name="name" value="{{ student.Name }}">
-        <input type="hidden" name="room" value="{{ student.Room }}">
 
         <label>Leave Type</label>
         <select name="leave_type" id="leave_type" onchange="toggleFields()" required>
