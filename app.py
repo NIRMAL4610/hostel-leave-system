@@ -6,6 +6,10 @@ import qrcode
 import uuid
 import psycopg2
 import psycopg2.extras
+from psycopg2.extras import RealDictCursor
+
+def get_cursor(conn):
+    return conn.cursor(cursor_factory=RealDictCursor)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret")
@@ -18,7 +22,7 @@ def get_db():
     return psycopg2.connect(DATABASE_URL, sslmode='require')
 
 def get_cursor(conn):
-    return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    return conn.cursor(cursor_factory=RealDictCursor)
 
 # ================== INIT DB ==================
 
