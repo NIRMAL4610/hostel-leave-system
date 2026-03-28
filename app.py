@@ -1,33 +1,30 @@
-from flask import Flask, render_template, request, redirect, url_for
-from flask import redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, send_from_directory
 from datetime import datetime
-import pandas as pd
 import os
 import qrcode
 import uuid
-from flask import jsonify
-from flask import session
-import sqlite3
-
-
+import psycopg2
+import psycopg2.extras
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "dev_secret")
 
-init_db()
-seed_students()
+# ================== DATABASE CONFIG ==================
 
-DB_FILE = "database.db"
-DB_FILE = os.path.join(os.getcwd(), "database.db")
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
 def get_db():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return psycopg2.connect(DATABASE_URL)
+
+def get_cursor(conn):
+    return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+# ================== INIT DB ==================
 
 def init_db():
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
-    # Students Table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS students (
         RegNo TEXT PRIMARY KEY,
@@ -39,10 +36,9 @@ def init_db():
     )
     """)
 
-    # Leave Records Table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS leave_records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         LeaveType TEXT,
         Name TEXT,
         RegNo TEXT,
@@ -64,10 +60,11 @@ def init_db():
     conn.commit()
     conn.close()
 
+# ================== SEED DATA ==================
 
 def seed_students():
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
     students = [
         ("24MEI10149", "R Nirmal Rajan", "pass123", 5, "B311", "photos/24MEI10149.jpeg"),
@@ -77,23 +74,15 @@ def seed_students():
 
     for s in students:
         cursor.execute("""
-        INSERT OR IGNORE INTO students VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO students (RegNo, Name, Password, Block, Room, Photo)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (RegNo) DO NOTHING
         """, s)
 
     conn.commit()
     conn.close()
 
-seed_students()
-
-
-def ensure_columns(df):
-    required_cols = ["Current Status", "Exit Time", "Entry Time", "QR ID", "QR File"]
-
-    for col in required_cols:
-        if col not in df.columns:
-            df[col] = ""
-
-    return df
+# ================== HOME ==================
 
 @app.route('/')
 def home():
@@ -103,16 +92,16 @@ def home():
     regno = session['user']
 
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
-    cursor.execute("SELECT * FROM students WHERE RegNo=?", (regno,))
+    cursor.execute("SELECT * FROM students WHERE RegNo=%s", (regno,))
     student = cursor.fetchone()
 
     conn.close()
 
     return render_template("apply.html", student=student)
 
-app.secret_key = "secret123"
+# ================== LOGIN ==================
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -121,11 +110,13 @@ def login():
         password = request.form['password']
 
         conn = get_db()
-        cursor = conn.cursor()
+        cursor = get_cursor(conn)
 
-        cursor.execute("SELECT * FROM students WHERE RegNo=? AND Password=?", (regno, password))
+        cursor.execute(
+            "SELECT * FROM students WHERE RegNo=%s AND Password=%s",
+            (regno, password)
+        )
         student = cursor.fetchone()
-
         conn.close()
 
         if student:
@@ -136,10 +127,14 @@ def login():
 
     return render_template("login.html")
 
+# ================== LOGOUT ==================
+
 @app.route('/logout')
 def logout():
     session.pop('user', None)
     return redirect('/login')
+
+# ================== SUBMIT ==================
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -149,9 +144,9 @@ def submit():
     regno = session['user']
 
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
-    cursor.execute("SELECT * FROM students WHERE RegNo=?", (regno,))
+    cursor.execute("SELECT * FROM students WHERE RegNo=%s", (regno,))
     student = cursor.fetchone()
 
     leave_type = request.form['leave_type']
@@ -162,7 +157,7 @@ def submit():
     INSERT INTO leave_records
     (LeaveType, Name, RegNo, Room, Place, FromDate, ToDate, Reason,
      Status, QRID, QRFile, ExitTime, EntryTime, CurrentStatus, Photo)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         leave_type,
         student["Name"],
@@ -186,6 +181,8 @@ def submit():
 
     return "<h3>Request Submitted Successfully ✅</h3>"
 
+# ================== STATUS ==================
+
 @app.route('/status')
 def status():
     if 'user' not in session:
@@ -194,19 +191,21 @@ def status():
     regno = session['user']
 
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
-    cursor.execute("SELECT * FROM leave_records WHERE RegNo=?", (regno,))
+    cursor.execute("SELECT * FROM leave_records WHERE RegNo=%s", (regno,))
     records = cursor.fetchall()
 
     conn.close()
 
     return render_template("status.html", records=records)
 
+# ================== APPROVAL ==================
+
 @app.route('/approval')
 def approval():
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
     cursor.execute("SELECT * FROM leave_records")
     records = cursor.fetchall()
@@ -214,6 +213,8 @@ def approval():
     conn.close()
 
     return render_template("approval.html", records=records)
+
+# ================== SCANNERS ==================
 
 @app.route('/scanner_in')
 def scanner_in_page():
@@ -223,13 +224,14 @@ def scanner_in_page():
 def scanner_out_page():
     return render_template("scanner_out.html")
 
+# ================== SCAN OUT ==================
+
 @app.route('/scan_out/<qr_id>')
 def scan_out(qr_id):
-
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
-    cursor.execute("SELECT * FROM leave_records WHERE QRID=?", (qr_id,))
+    cursor.execute("SELECT * FROM leave_records WHERE QRID=%s", (qr_id,))
     record = cursor.fetchone()
 
     if not record:
@@ -246,8 +248,8 @@ def scan_out(qr_id):
 
     cursor.execute("""
     UPDATE leave_records
-    SET ExitTime=?, CurrentStatus=?
-    WHERE QRID=?
+    SET ExitTime=%s, CurrentStatus=%s
+    WHERE QRID=%s
     """, (datetime.now().strftime("%Y-%m-%d %H:%M"), "Out", qr_id))
 
     conn.commit()
@@ -261,37 +263,26 @@ def scan_out(qr_id):
         "photo": record["Photo"]
     })
 
+# ================== SCAN IN ==================
+
 @app.route('/scan_in/<qr_id>')
 def scan_in(qr_id):
-
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
-    cursor.execute("SELECT * FROM leave_records WHERE QRID=?", (qr_id,))
+    cursor.execute("SELECT * FROM leave_records WHERE QRID=%s", (qr_id,))
     record = cursor.fetchone()
 
     if not record:
-        return jsonify({
-            "status": "denied",
-            "message": "Invalid QR Code",
-            "name": "",
-            "regno": "",
-            "photo": ""
-        })
+        return jsonify({"status": "denied", "message": "Invalid QR Code"})
 
     if record["CurrentStatus"] != "Out":
-        return jsonify({
-            "status": "denied",
-            "message": "Exit not recorded",
-            "name": record["Name"],
-            "regno": record["RegNo"],
-            "photo": record["Photo"]
-        })
+        return jsonify({"status": "denied", "message": "Exit not recorded"})
 
     cursor.execute("""
     UPDATE leave_records
-    SET EntryTime=?, CurrentStatus=?
-    WHERE QRID=?
+    SET EntryTime=%s, CurrentStatus=%s
+    WHERE QRID=%s
     """, (datetime.now().strftime("%Y-%m-%d %H:%M"), "Returned", qr_id))
 
     conn.commit()
@@ -305,24 +296,26 @@ def scan_in(qr_id):
         "photo": record["Photo"]
     })
 
+# ================== APPROVE ==================
+
 @app.route('/approve/<int:id>')
 def approve(id):
-
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
-    cursor.execute("SELECT * FROM leave_records WHERE id=?", (id,))
+    cursor.execute("SELECT * FROM leave_records WHERE id=%s", (id,))
     record = cursor.fetchone()
 
+    if not record:
+        return "Invalid ID"
+
     if record["Status"] != "Approved":
-
         qr_id = str(uuid.uuid4())
-
         verify_url = request.host_url.rstrip('/') + "/scan_out/" + qr_id
 
         qr = qrcode.make(verify_url)
 
-        qr_folder = "static/qr_codes"
+        qr_folder = os.path.join("static", "qr_codes")
         os.makedirs(qr_folder, exist_ok=True)
 
         qr_filename = f"qr_{qr_id}.png"
@@ -332,8 +325,8 @@ def approve(id):
 
         cursor.execute("""
         UPDATE leave_records
-        SET Status=?, QRID=?, QRFile=?
-        WHERE id=?
+        SET Status=%s, QRID=%s, QRFile=%s
+        WHERE id=%s
         """, ("Approved", qr_id, f"qr_codes/{qr_filename}", id))
 
     conn.commit()
@@ -341,16 +334,17 @@ def approve(id):
 
     return redirect('/approval')
 
+# ================== REJECT ==================
+
 @app.route('/reject/<int:id>')
 def reject(id):
-
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
     cursor.execute("""
     UPDATE leave_records
     SET Status='Rejected'
-    WHERE id=? AND Status='Pending'
+    WHERE id=%s AND Status='Pending'
     """, (id,))
 
     conn.commit()
@@ -358,23 +352,24 @@ def reject(id):
 
     return redirect('/approval')
 
-from flask import send_from_directory, request
+# ================== DOWNLOAD QR ==================
 
 @app.route('/download_qr/<path:filename>')
 def download_qr(filename):
-    custom_name = request.args.get("name")  # 👈 get filename from URL
+    custom_name = request.args.get("name")
     return send_from_directory(
         'static',
         filename,
         as_attachment=True,
-        download_name=custom_name   # 🔥 FORCE filename
+        download_name=custom_name
     )
+
+# ================== DASHBOARD ==================
 
 @app.route('/dashboard')
 def dashboard():
-
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
 
     cursor.execute("SELECT * FROM leave_records")
     rows = cursor.fetchall()
@@ -383,7 +378,7 @@ def dashboard():
 
     for row in rows:
         if row["CurrentStatus"] == "Out":
-            if row["ToDate"] != "-" and row["ToDate"]:
+            if row["ToDate"] and row["ToDate"] != "-":
                 end_date = datetime.strptime(row["ToDate"], "%Y-%m-%d")
 
                 if datetime.now().date() > end_date.date():
@@ -407,7 +402,13 @@ def dashboard():
     </ul>
     """
 
+# ================== INIT ==================
+
+init_db()
+seed_students()
+
 # ================== RUN ==================
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
