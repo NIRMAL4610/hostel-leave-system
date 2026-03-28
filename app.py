@@ -5,21 +5,17 @@ import os
 import qrcode
 import uuid
 import psycopg2
-import psycopg2.extras
 from psycopg2.extras import RealDictCursor
-
-def get_cursor(conn):
-    return conn.cursor(cursor_factory=RealDictCursor)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret")
 
-# ================== DATABASE CONFIG ==================
+# ================== DATABASE ==================
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 def get_db():
-    return psycopg2.connect(DATABASE_URL, sslmode='require')
+    return psycopg2.connect(DATABASE_URL)
 
 def get_cursor(conn):
     return conn.cursor(cursor_factory=RealDictCursor)
@@ -27,65 +23,71 @@ def get_cursor(conn):
 # ================== INIT DB ==================
 
 def init_db():
-    conn = get_db()
-    cursor = get_cursor(conn)
+    try:
+        conn = get_db()
+        cursor = get_cursor(conn)
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS students (
-        RegNo TEXT PRIMARY KEY,
-        Name TEXT,
-        Password TEXT,
-        Block INTEGER,
-        Room TEXT,
-        Photo TEXT
-    )
-    """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS students (
+            RegNo TEXT PRIMARY KEY,
+            Name TEXT,
+            Password TEXT,
+            Block INTEGER,
+            Room TEXT,
+            Photo TEXT
+        )
+        """)
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS leave_records (
-        id SERIAL PRIMARY KEY,
-        LeaveType TEXT,
-        Name TEXT,
-        RegNo TEXT,
-        Room TEXT,
-        Place TEXT,
-        FromDate TEXT,
-        ToDate TEXT,
-        Reason TEXT,
-        Status TEXT,
-        QRID TEXT,
-        QRFile TEXT,
-        ExitTime TEXT,
-        EntryTime TEXT,
-        CurrentStatus TEXT,
-        Photo TEXT
-    )
-    """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS leave_records (
+            id SERIAL PRIMARY KEY,
+            LeaveType TEXT,
+            Name TEXT,
+            RegNo TEXT,
+            Room TEXT,
+            Place TEXT,
+            FromDate TEXT,
+            ToDate TEXT,
+            Reason TEXT,
+            Status TEXT,
+            QRID TEXT,
+            QRFile TEXT,
+            ExitTime TEXT,
+            EntryTime TEXT,
+            CurrentStatus TEXT,
+            Photo TEXT
+        )
+        """)
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print("DB INIT ERROR:", e)
 
-# ================== SEED DATA ==================
+# ================== SEED ==================
 
 def seed_students():
-    conn = get_db()
-    cursor = get_cursor(conn)
+    try:
+        conn = get_db()
+        cursor = get_cursor(conn)
 
-    students = [
-    ("24MEI10149", "R Nirmal Rajan", generate_password_hash("pass123"), 5, "B311", "photos/24MEI10149.jpeg"),
-    ("24MEI10050", "Prasanna Verma", generate_password_hash("pass456"), 5, "A102", "photos/24MEI10050.jpeg"),
-    ("24BCE10739", "Devansh Patel", generate_password_hash("pass789"), 5, "B311", "photos/24BCE10739.jpeg")
-]
+        students = [
+            ("24MEI10149", "R Nirmal Rajan", generate_password_hash("pass123"), 5, "B311", "photos/24MEI10149.jpeg"),
+            ("24MEI10050", "Prasanna Verma", generate_password_hash("pass456"), 5, "A102", "photos/24MEI10050.jpeg"),
+            ("24BCE10739", "Devansh Patel", generate_password_hash("pass789"), 5, "B311", "photos/24BCE10739.jpeg")
+        ]
 
-    for s in students:
-        cursor.execute("""
-        INSERT INTO students (RegNo, Name, Password, Block, Room, Photo)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        ON CONFLICT (RegNo) DO NOTHING
-        """, s)
+        for s in students:
+            cursor.execute("""
+            INSERT INTO students (RegNo, Name, Password, Block, Room, Photo)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (RegNo) DO NOTHING
+            """, s)
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print("SEED ERROR:", e)
 
 # ================== HOME ==================
 
@@ -94,17 +96,23 @@ def home():
     if 'user' not in session:
         return redirect('/login')
 
-    regno = session['user']
+    try:
+        conn = get_db()
+        cursor = get_cursor(conn)
 
-    conn = get_db()
-    cursor = get_cursor(conn)
+        cursor.execute("SELECT * FROM students WHERE RegNo=%s", (session['user'],))
+        student = cursor.fetchone()
 
-    cursor.execute("SELECT * FROM students WHERE RegNo=%s", (regno,))
-    student = cursor.fetchone()
+        conn.close()
 
-    conn.close()
+        if not student:
+            return redirect('/login')
 
-    return render_template("apply.html", student=student)
+        return render_template("apply.html", student=student)
+
+    except Exception as e:
+        print("HOME ERROR:", e)
+        return "Something went wrong"
 
 # ================== LOGIN ==================
 
@@ -116,18 +124,23 @@ def login():
         regno = request.form['regno']
         password = request.form['password']
 
-        conn = get_db()
-        cursor = get_cursor(conn)
+        try:
+            conn = get_db()
+            cursor = get_cursor(conn)
 
-        cursor.execute("SELECT * FROM students WHERE RegNo=%s", (regno,))
-        student = cursor.fetchone()
-        conn.close()
+            cursor.execute("SELECT * FROM students WHERE RegNo=%s", (regno,))
+            student = cursor.fetchone()
+            conn.close()
 
-        if student and check_password_hash(student["password"], password):
-            session['user'] = regno
-            return redirect('/')
+            if student and check_password_hash(student["password"], password):
+                session['user'] = regno
+                return redirect('/')
 
-        error = "Invalid Register Number or Password ❌"
+            error = "Invalid Register Number or Password ❌"
+
+        except Exception as e:
+            print("LOGIN ERROR:", e)
+            error = "Server Error"
 
     return render_template("login.html", error=error)
 
@@ -135,7 +148,7 @@ def login():
 
 @app.route('/logout')
 def logout():
-    session.pop('user', None)
+    session.clear()
     return redirect('/login')
 
 # ================== SUBMIT ==================
@@ -145,45 +158,44 @@ def submit():
     if 'user' not in session:
         return redirect('/login')
 
-    regno = session['user']
+    try:
+        conn = get_db()
+        cursor = get_cursor(conn)
 
-    conn = get_db()
-    cursor = get_cursor(conn)
+        cursor.execute("SELECT * FROM students WHERE RegNo=%s", (session['user'],))
+        student = cursor.fetchone()
 
-    cursor.execute("SELECT * FROM students WHERE RegNo=%s", (regno,))
-    student = cursor.fetchone()
+        cursor.execute("""
+        INSERT INTO leave_records
+        (LeaveType, Name, RegNo, Room, Place, FromDate, ToDate, Reason,
+         Status, QRID, QRFile, ExitTime, EntryTime, CurrentStatus, Photo)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            request.form['leave_type'],
+            student["name"],
+            student["regno"],
+            student["room"],
+            request.form['place'],
+            request.form['from_date'],
+            request.form.get('to_date') or "-",
+            request.form['reason'],
+            "Pending",
+            "",
+            "",
+            "",
+            "",
+            "Inside",
+            student["photo"]
+        ))
 
-    leave_type = request.form['leave_type']
-    from_date = request.form['from_date']
-    to_date = request.form.get('to_date') or "-"
+        conn.commit()
+        conn.close()
 
-    cursor.execute("""
-    INSERT INTO leave_records
-    (LeaveType, Name, RegNo, Room, Place, FromDate, ToDate, Reason,
-     Status, QRID, QRFile, ExitTime, EntryTime, CurrentStatus, Photo)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (
-        leave_type,
-        student["Name"],
-        regno,
-        student["Room"],
-        request.form['place'],
-        from_date,
-        to_date,
-        request.form['reason'],
-        "Pending",
-        "",
-        "",
-        "",
-        "",
-        "Inside",
-        student["Photo"]
-    ))
+        return "<h3>Request Submitted Successfully ✅</h3>"
 
-    conn.commit()
-    conn.close()
-
-    return "<h3>Request Submitted Successfully ✅</h3>"
+    except Exception as e:
+        print("SUBMIT ERROR:", e)
+        return "Error submitting request"
 
 # ================== STATUS ==================
 
@@ -192,12 +204,10 @@ def status():
     if 'user' not in session:
         return redirect('/login')
 
-    regno = session['user']
-
     conn = get_db()
     cursor = get_cursor(conn)
 
-    cursor.execute("SELECT * FROM leave_records WHERE RegNo=%s", (regno,))
+    cursor.execute("SELECT * FROM leave_records WHERE RegNo=%s", (session['user'],))
     records = cursor.fetchall()
 
     conn.close()
@@ -310,33 +320,35 @@ def approve(id):
     cursor.execute("SELECT * FROM leave_records WHERE id=%s", (id,))
     record = cursor.fetchone()
 
-    if not record:
-        return "Invalid ID"
-
-    if record["Status"] != "Approved":
+    if record and record["status"] != "Approved":
         qr_id = str(uuid.uuid4())
         verify_url = request.host_url.rstrip('/') + "/scan_out/" + qr_id
 
         qr = qrcode.make(verify_url)
 
-        qr_folder = os.path.join("static", "qr_codes")
-        os.makedirs(qr_folder, exist_ok=True)
+        folder = os.path.join("static", "qr_codes")
+        os.makedirs(folder, exist_ok=True)
 
-        qr_filename = f"qr_{qr_id}.png"
-        qr_path = os.path.join(qr_folder, qr_filename)
+        filename = f"qr_{qr_id}.png"
+        path = os.path.join(folder, filename)
 
-        qr.save(qr_path)
+        qr.save(path)
 
         cursor.execute("""
         UPDATE leave_records
         SET Status=%s, QRID=%s, QRFile=%s
         WHERE id=%s
-        """, ("Approved", qr_id, f"qr_codes/{qr_filename}", id))
+        """, ("Approved", qr_id, f"qr_codes/{filename}", id))
 
     conn.commit()
     conn.close()
 
     return redirect('/approval')
+
+# ================== INIT ==================
+
+init_db()
+seed_students()
 
 # ================== REJECT ==================
 
