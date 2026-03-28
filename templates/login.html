@@ -128,7 +128,7 @@
 
     <h2>🔐 Student Login</h2>
 
-    <form method="POST" onsubmit="return validateCaptcha()">
+    <form method="POST" onsubmit="return handleSubmit();">
 
         <div class="input-group">
             <label>Register Number</label>
@@ -166,6 +166,20 @@
 </div>
 
 <script>
+
+function disableBtn() {
+    document.querySelector("button").disabled = true;
+}
+
+function handleSubmit() {
+    if (!validateCaptcha()) {
+        return false;
+    }
+
+    disableBtn();
+    return true;
+}
+    
 function togglePassword() {
     let pwd = document.getElementById("password");
     pwd.type = (pwd.type === "password") ? "text" : "password";
@@ -185,10 +199,10 @@ function generateCaptcha() {
 }
 
 function validateCaptcha() {
-    let userInput = document.getElementById("captchaInput").value;
+    let userInput = document.getElementById("captchaInput").value.trim();
     let errorBox = document.getElementById("error");
 
-    if (userInput !== currentCaptcha) {
+    if (userInput === "" || userInput !== currentCaptcha) {
         errorBox.innerText = "❌ Incorrect Captcha";
         generateCaptcha();
         return false;
@@ -199,6 +213,8 @@ function validateCaptcha() {
 
 // Clear error while typing
 document.addEventListener("DOMContentLoaded", () => {
+    document.querySelector("input[name='regno']").focus();
+
     document.getElementById("captchaInput").addEventListener("input", () => {
         document.getElementById("error").innerText = "";
     });
