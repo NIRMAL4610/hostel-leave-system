@@ -125,7 +125,7 @@ def login():
 
         return "<h3>Invalid Login ❌</h3>"
 
-    return render_template("login.html")
+    return render_template("login.html", error="Invalid Login")
 
 # ================== LOGOUT ==================
 
