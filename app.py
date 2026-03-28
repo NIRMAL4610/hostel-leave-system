@@ -105,6 +105,8 @@ def home():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    error = None
+
     if request.method == 'POST':
         regno = request.form['regno']
         password = request.form['password']
@@ -123,9 +125,9 @@ def login():
             session['user'] = regno
             return redirect('/')
 
-        return "<h3>Invalid Login ❌</h3>"
+        error = "Invalid Register Number or Password ❌"
 
-    return render_template("login.html", error="Invalid Login")
+    return render_template("login.html", error=error)
 
 # ================== LOGOUT ==================
 
