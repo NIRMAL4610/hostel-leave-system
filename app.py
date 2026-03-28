@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session, send_from_directory
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import os
 import qrcode
@@ -67,10 +68,10 @@ def seed_students():
     cursor = get_cursor(conn)
 
     students = [
-        ("24MEI10149", "R Nirmal Rajan", "pass123", 5, "B311", "photos/24MEI10149.jpeg"),
-        ("24MEI10050", "Prasanna Verma", "pass456", 5, "A102", "photos/24MEI10050.jpeg"),
-        ("24BCE10739", "Devansh Patel", "pass789", 5, "B311", "photos/24BCE10739.jpeg")
-    ]
+    ("24MEI10149", "R Nirmal Rajan", generate_password_hash("pass123"), 5, "B311", "photos/24MEI10149.jpeg"),
+    ("24MEI10050", "Prasanna Verma", generate_password_hash("pass456"), 5, "A102", "photos/24MEI10050.jpeg"),
+    ("24BCE10739", "Devansh Patel", generate_password_hash("pass789"), 5, "B311", "photos/24BCE10739.jpeg")
+]
 
     for s in students:
         cursor.execute("""
@@ -114,14 +115,11 @@ def login():
         conn = get_db()
         cursor = get_cursor(conn)
 
-        cursor.execute(
-            "SELECT * FROM students WHERE RegNo=%s AND Password=%s",
-            (regno, password)
-        )
+        cursor.execute("SELECT * FROM students WHERE RegNo=%s", (regno,))
         student = cursor.fetchone()
         conn.close()
 
-        if student:
+        if student and check_password_hash(student["password"], password):
             session['user'] = regno
             return redirect('/')
 
