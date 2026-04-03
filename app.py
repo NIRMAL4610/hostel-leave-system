@@ -210,6 +210,16 @@ def status():
     cursor.execute("SELECT * FROM leave_records WHERE RegNo=%s", (session['user'],))
     records = cursor.fetchall()
 
+    # ✅ NOW process records (after fetching)
+    for r in records:
+        if r["todate"] and r["todate"] != "-":
+            if datetime.now().date() > datetime.strptime(r["todate"], "%Y-%m-%d").date():
+                r["expired"] = True
+            else:
+                r["expired"] = False
+        else:
+            r["expired"] = False
+
     conn.close()
 
     return render_template("status.html", records=records)
