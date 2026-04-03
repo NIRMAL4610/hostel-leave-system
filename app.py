@@ -6,6 +6,8 @@ import qrcode
 import uuid
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import base64
+from io import BytesIO
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret")
@@ -346,36 +348,28 @@ def approve(id):
     cursor.execute("SELECT * FROM leave_records WHERE id=%s", (id,))
     record = cursor.fetchone()
 
-    # ❌ Invalid ID
     if not record:
-        conn.close()
-        return "Invalid Request"
+        return "Invalid ID"
 
-    # ❌ Already approved → stop here
     if record["status"] == "Approved":
-        conn.close()
         return "Already Approved"
 
-    # ✅ Generate QR
     qr_id = str(uuid.uuid4())
     verify_url = request.host_url.rstrip('/') + "/scan_out/" + qr_id
 
+    # Generate QR
     qr = qrcode.make(verify_url)
 
-    folder = os.path.join("static", "qr_codes")
-    os.makedirs(folder, exist_ok=True)
+    # Convert to base64
+    buffer = BytesIO()
+    qr.save(buffer, format="PNG")
+    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
 
-    filename = f"qr_{qr_id}.png"
-    path = os.path.join(folder, filename)
-
-    qr.save(path)
-
-    # ✅ Update DB
     cursor.execute("""
     UPDATE leave_records
-    SET status=%s, qrid=%s, qrfile=%s
+    SET Status=%s, QRID=%s, qrimage=%s
     WHERE id=%s
-    """, ("Approved", qr_id, f"qr_codes/{filename}", id))
+    """, ("Approved", qr_id, qr_base64, id))
 
     conn.commit()
     conn.close()
