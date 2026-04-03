@@ -411,7 +411,7 @@ def reject(id):
 def download_qr(filename):
     custom_name = request.args.get("name")
     return send_from_directory(
-        'static',
+        'static',   # ✅ correct
         filename,
         as_attachment=True,
         download_name=custom_name
