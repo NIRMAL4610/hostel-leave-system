@@ -251,7 +251,9 @@ function openModal(imageSrc, regno, type, fromDate) {
     let downloadLink = document.getElementById("downloadLink");
 
     modal.style.display = "block";
-    img.src = imageSrc;
+
+    // ✅ Force reload image (fix caching issue)
+    img.src = imageSrc + "?t=" + new Date().getTime();
 
     let filePath = imageSrc.replace("/static/", "");
     let cleanDate = fromDate.replace(/-/g, "");
