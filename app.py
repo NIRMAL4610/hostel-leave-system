@@ -340,41 +340,48 @@ def scan_in(qr_id):
 
 # ================== APPROVE ==================
 
+import base64
+from io import BytesIO
+
 @app.route('/approve/<int:id>')
 def approve(id):
-    conn = get_db()
-    cursor = get_cursor(conn)
+    try:
+        conn = get_db()
+        cursor = get_cursor(conn)
 
-    cursor.execute("SELECT * FROM leave_records WHERE id=%s", (id,))
-    record = cursor.fetchone()
+        cursor.execute("SELECT * FROM leave_records WHERE id=%s", (id,))
+        record = cursor.fetchone()
 
-    if not record:
-        return "Invalid ID"
+        if not record:
+            return "Invalid ID", 400
 
-    if record["status"] == "Approved":
-        return "Already Approved"
+        # ✅ FIX: correct key names (lowercase)
+        if record["status"] == "Approved" and record["qrimage"]:
+            return "Already Approved", 200
 
-    qr_id = str(uuid.uuid4())
-    verify_url = request.host_url.rstrip('/') + "/scan_out/" + qr_id
+        qr_id = str(uuid.uuid4())
+        verify_url = request.host_url.rstrip('/') + "/scan_out/" + qr_id
 
-    # Generate QR
-    qr = qrcode.make(verify_url)
+        qr = qrcode.make(verify_url)
 
-    # Convert to base64
-    buffer = BytesIO()
-    qr.save(buffer, format="PNG")
-    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+        buffer = BytesIO()
+        qr.save(buffer, format="PNG")
+        qr_base64 = base64.b64encode(buffer.getvalue()).decode()
 
-    cursor.execute("""
-    UPDATE leave_records
-    SET Status=%s, QRID=%s, qrimage=%s
-    WHERE id=%s
-    """, ("Approved", qr_id, qr_base64, id))
+        cursor.execute("""
+        UPDATE leave_records
+        SET status=%s, qrid=%s, qrimage=%s
+        WHERE id=%s
+        """, ("Approved", qr_id, qr_base64, id))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        conn.close()
 
-    return redirect('/approval')
+        return "Approved", 200   # ✅ IMPORTANT
+
+    except Exception as e:
+        print("ERROR:", e)   # 👈 VERY IMPORTANT
+        return "Server Error", 500
 
 # ================== INIT ==================
 
