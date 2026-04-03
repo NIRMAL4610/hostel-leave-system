@@ -336,25 +336,36 @@ def approve(id):
     cursor.execute("SELECT * FROM leave_records WHERE id=%s", (id,))
     record = cursor.fetchone()
 
-    if record and record["status"] != "Approved":
-        qr_id = str(uuid.uuid4())
-        verify_url = request.host_url.rstrip('/') + "/scan_out/" + qr_id
+    # ❌ Invalid ID
+    if not record:
+        conn.close()
+        return "Invalid Request"
 
-        qr = qrcode.make(verify_url)
+    # ❌ Already approved → stop here
+    if record["status"] == "Approved":
+        conn.close()
+        return "Already Approved"
 
-        folder = os.path.join("static", "qr_codes")
-        os.makedirs(folder, exist_ok=True)
+    # ✅ Generate QR
+    qr_id = str(uuid.uuid4())
+    verify_url = request.host_url.rstrip('/') + "/scan_out/" + qr_id
 
-        filename = f"qr_{qr_id}.png"
-        path = os.path.join(folder, filename)
+    qr = qrcode.make(verify_url)
 
-        qr.save(path)
+    folder = os.path.join("static", "qr_codes")
+    os.makedirs(folder, exist_ok=True)
 
-        cursor.execute("""
-        UPDATE leave_records
-        SET Status=%s, QRID=%s, QRFile=%s
-        WHERE id=%s
-        """, ("Approved", qr_id, f"qr_codes/{filename}", id))
+    filename = f"qr_{qr_id}.png"
+    path = os.path.join(folder, filename)
+
+    qr.save(path)
+
+    # ✅ Update DB
+    cursor.execute("""
+    UPDATE leave_records
+    SET status=%s, qrid=%s, qrfile=%s
+    WHERE id=%s
+    """, ("Approved", qr_id, f"qr_codes/{filename}", id))
 
     conn.commit()
     conn.close()
