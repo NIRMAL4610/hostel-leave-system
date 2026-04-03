@@ -119,19 +119,19 @@
 
         {% for row in records %}
         <tr>
-            <td><img src="/static/{{ row['Photo'] }}"></td>
+            <td><img src="{{ url_for('static', filename=row['Photo']) }}"></td>
             <td>{{ row['Name'] }}</td>
             <td>{{ row['RegNo'] }}</td>
-            <td>{{ row['Leave Type'] }}</td>
-            <td>{{ row['From Date'] }}</td>
-            <td>{{ row['To Date'] }}</td>
-
+            <td>{{ row['LeaveType'] }}</td>
+            <td>{{ row['FromDate'] }}</td>
+            <td>{{ row['ToDate'] }}</td>
+        
             <td class="statusCell">{{ row['Status'] }}</td>
-
+        
             <td>
                 {% if row['Status'] == 'Pending' %}
-                    <button class="btn approve" onclick="approve({{ loop.index0 }}, this)">Approve</button>
-                    <button class="btn reject" onclick="reject({{ loop.index0 }}, this)">Reject</button>
+                    <button class="btn approve" onclick="approve({{ row['id'] }}, this)">Approve</button>
+                    <button class="btn reject" onclick="reject({{ row['id'] }}, this)">Reject</button>
                 {% else %}
                     -
                 {% endif %}
@@ -162,17 +162,19 @@ function filterTable() {
     });
 }
 
-function approve(index, btn) {
-    fetch(`/approve/${index}`)
-    .then(() => {
-        updateRow(btn, "Approved");
+function approve(id, btn) {
+    fetch(`/approve/${id}`, { method: "GET" })
+    .then(res => {
+        if (res.ok) updateRow(btn, "Approved");
+        else alert("Error approving request");
     });
 }
 
-function reject(index, btn) {
-    fetch(`/reject/${index}`)
-    .then(() => {
-        updateRow(btn, "Rejected");
+function reject(id, btn) {
+    fetch(`/reject/${id}`, { method: "GET" })
+    .then(res => {
+        if (res.ok) updateRow(btn, "Rejected");
+        else alert("Error rejecting request");
     });
 }
 
