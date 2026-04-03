@@ -197,14 +197,18 @@
             <!-- 🔳 QR -->
             <td>
                 {% if row['status'] == 'Approved' and row['qrfile'] %}
-                    <span class="qr-link"
-                        onclick="openModal(
-                        '{{ url_for('static', filename=row['qrfile']) }}',
-                        '{{ row['regno'] }}',
-                        '{{ row['leavetype'] }}',
-                        '{{ row['fromdate'] }}')">
-                        View QR
-                    </span>
+                    {% if row['expired'] %}
+                        ❌ Expired
+                    {% else %}
+                        <span class="qr-link"
+                            onclick="openModal(
+                            '{{ url_for('static', filename=row['qrfile']) }}',
+                            '{{ row['regno'] }}',
+                            '{{ row['leavetype'] }}',
+                            '{{ row['fromdate'] }}')">
+                            View QR
+                        </span>
+                    {% endif %}
                 {% else %}
                     -
                 {% endif %}
