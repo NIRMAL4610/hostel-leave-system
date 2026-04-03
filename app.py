@@ -249,21 +249,32 @@ def scan_out(qr_id):
     record = cursor.fetchone()
 
     if not record:
-        return jsonify({"status": "error", "message": "Invalid QR Code"})
+        return jsonify({"status": "error", "message": "Invalid QR Code ❌"})
 
     today = datetime.now().date()
-    from_date = datetime.strptime(record["FromDate"], "%Y-%m-%d").date()
 
-    if today != from_date:
-        return jsonify({"status": "denied", "message": "Not allowed today"})
+    from_date = datetime.strptime(record["fromdate"], "%Y-%m-%d").date()
+    to_date = record["todate"]
 
-    if record["CurrentStatus"] == "Out":
-        return jsonify({"status": "warning", "message": "Already Exited"})
+    # ✅ Expiry Check
+    if to_date and to_date != "-":
+        to_date = datetime.strptime(to_date, "%Y-%m-%d").date()
+        if today > to_date:
+            return jsonify({"status": "expired", "message": "QR Expired ❌"})
 
+    # ✅ Only valid on correct day
+    if today < from_date:
+        return jsonify({"status": "denied", "message": "Not allowed today ❌"})
+
+    # ✅ Already exited
+    if record["currentstatus"] == "Out":
+        return jsonify({"status": "warning", "message": "Already Exited ⚠️"})
+
+    # ✅ Update exit
     cursor.execute("""
     UPDATE leave_records
-    SET ExitTime=%s, CurrentStatus=%s
-    WHERE QRID=%s
+    SET exittime=%s, currentstatus=%s
+    WHERE qrid=%s
     """, (datetime.now().strftime("%Y-%m-%d %H:%M"), "Out", qr_id))
 
     conn.commit()
@@ -271,10 +282,10 @@ def scan_out(qr_id):
 
     return jsonify({
         "status": "allowed",
-        "message": "Exit Allowed",
-        "name": record["Name"],
-        "regno": record["RegNo"],
-        "photo": record["Photo"]
+        "message": "Exit Allowed ✅",
+        "name": record["name"],
+        "regno": record["regno"],
+        "photo": record["photo"]
     })
 
 # ================== SCAN IN ==================
@@ -288,15 +299,20 @@ def scan_in(qr_id):
     record = cursor.fetchone()
 
     if not record:
-        return jsonify({"status": "denied", "message": "Invalid QR Code"})
+        return jsonify({"status": "error", "message": "Invalid QR ❌"})
 
-    if record["CurrentStatus"] != "Out":
-        return jsonify({"status": "denied", "message": "Exit not recorded"})
+    # ❌ Cannot enter without exit
+    if record["currentstatus"] != "Out":
+        return jsonify({"status": "denied", "message": "Exit not recorded ❌"})
+
+    # ❌ Prevent reuse
+    if record["currentstatus"] == "Returned":
+        return jsonify({"status": "warning", "message": "Already Returned ⚠️"})
 
     cursor.execute("""
     UPDATE leave_records
-    SET EntryTime=%s, CurrentStatus=%s
-    WHERE QRID=%s
+    SET entrytime=%s, currentstatus=%s
+    WHERE qrid=%s
     """, (datetime.now().strftime("%Y-%m-%d %H:%M"), "Returned", qr_id))
 
     conn.commit()
@@ -304,10 +320,10 @@ def scan_in(qr_id):
 
     return jsonify({
         "status": "allowed",
-        "message": "Entry Recorded",
-        "name": record["Name"],
-        "regno": record["RegNo"],
-        "photo": record["Photo"]
+        "message": "Entry Recorded ✅",
+        "name": record["name"],
+        "regno": record["regno"],
+        "photo": record["photo"]
     })
 
 # ================== APPROVE ==================
