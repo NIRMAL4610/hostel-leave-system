@@ -10,7 +10,6 @@
             background: #f4f6f9;
         }
 
-        /* 🔝 NAVBAR */
         .navbar {
             background: #2a5298;
             color: white;
@@ -25,7 +24,6 @@
             margin-left: 15px;
         }
 
-        /* 📦 CONTAINER */
         .container {
             width: 90%;
             margin: 30px auto;
@@ -33,10 +31,6 @@
             padding: 20px;
             border-radius: 12px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        }
-
-        h2 {
-            margin-bottom: 20px;
         }
 
         table {
@@ -56,11 +50,6 @@
             border-bottom: 1px solid #ddd;
         }
 
-        tr:hover {
-            background: #f1f1f1;
-        }
-
-        /* 🎯 STATUS BADGES */
         .status {
             padding: 5px 10px;
             border-radius: 20px;
@@ -73,18 +62,12 @@
         .pending { background: orange; }
         .rejected { background: red; }
 
-        /* 🔗 QR LINK */
         .qr-link {
             color: #2a5298;
             cursor: pointer;
             font-weight: bold;
         }
 
-        .qr-link:hover {
-            text-decoration: underline;
-        }
-
-        /* 🔥 MODAL */
         #qrModal {
             display: none;
             position: fixed;
@@ -125,21 +108,11 @@
             border-radius: 5px;
             cursor: pointer;
         }
-
-        .download-btn:hover {
-            background: darkgreen;
-        }
-
-        .empty {
-            text-align: center;
-            color: gray;
-        }
     </style>
 </head>
 
 <body>
 
-<!-- 🔝 NAVBAR -->
 <div class="navbar">
     <div>📘 Student Dashboard</div>
     <div>
@@ -148,7 +121,6 @@
     </div>
 </div>
 
-<!-- 📦 CONTENT -->
 <div class="container">
 
     <h2>📋 My Leave Status</h2>
@@ -169,9 +141,8 @@
         {% for row in records %}
         <tr>
             <td>{{ row['leavetype'] }}</td>
-        
             <td>{{ row['fromdate'] }}</td>
-        
+
             <td>
                 {% if row['leavetype'] == 'Leave' %}
                     {{ row['todate'] }}
@@ -179,11 +150,10 @@
                     -
                 {% endif %}
             </td>
-        
+
             <td>{{ row['place'] }}</td>
             <td>{{ row['reason'] }}</td>
-        
-            <!-- 🎯 STATUS -->
+
             <td>
                 {% if row['status'] == 'Approved' %}
                     <span class="status approved">Approved</span>
@@ -193,16 +163,16 @@
                     <span class="status rejected">Rejected</span>
                 {% endif %}
             </td>
-        
-            <!-- 🔳 QR -->
+
+            <!-- ✅ QR FIX -->
             <td>
-                {% if row['status'] == 'Approved' and row['qrfile'] %}
+                {% if row['status'] == 'Approved' and row['qrimage'] %}
                     {% if row['expired'] %}
                         ❌ Expired
                     {% else %}
                         <span class="qr-link"
                             onclick="openModal(
-                            '{{ url_for('static', filename=row['qrfile']) }}',
+                            '{{ row['qrimage'] }}',
                             '{{ row['regno'] }}',
                             '{{ row['leavetype'] }}',
                             '{{ row['fromdate'] }}')">
@@ -213,13 +183,13 @@
                     -
                 {% endif %}
             </td>
-        
+
         </tr>
         {% endfor %}
     </table>
 
     {% else %}
-        <p class="empty">No records found.</p>
+        <p>No records found.</p>
     {% endif %}
 
 </div>
@@ -227,24 +197,22 @@
 <!-- 🔥 MODAL -->
 <div id="qrModal">
     <div id="modalContent">
-
         <span class="close" onclick="closeModal()">&times;</span>
 
         <h3>QR Code</h3>
 
-        <img id="modalImage" src="">
+        <img id="modalImage">
 
         <br><br>
 
         <a id="downloadLink">
             <button class="download-btn">Download QR</button>
         </a>
-
     </div>
 </div>
 
 <script>
-function openModal(imageSrc, regno, type, fromDate) {
+function openModal(base64, regno, type, fromDate) {
 
     let modal = document.getElementById("qrModal");
     let img = document.getElementById("modalImage");
@@ -252,15 +220,16 @@ function openModal(imageSrc, regno, type, fromDate) {
 
     modal.style.display = "block";
 
-    // ✅ Force reload image (fix caching issue)
-    img.src = imageSrc + "?t=" + new Date().getTime();
+    // ✅ SHOW QR
+    let fullImage = "data:image/png;base64," + base64;
+    img.src = fullImage;
 
-    let filePath = imageSrc.replace("/static/", "");
+    // ✅ DOWNLOAD DIRECTLY
     let cleanDate = fromDate.replace(/-/g, "");
-
     let fileName = cleanDate + "_" + type + "_" + regno + "_QR.png";
 
-    downloadLink.href = "/download_qr/" + filePath + "?name=" + fileName;
+    downloadLink.href = fullImage;
+    downloadLink.download = fileName;
 }
 
 function closeModal() {
