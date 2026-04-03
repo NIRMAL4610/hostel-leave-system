@@ -168,53 +168,48 @@
 
         {% for row in records %}
         <tr>
-            <td>{{ row['Leave Type'] }}</td>
-
-            <td>{{ row['From Date'] }}</td>
-
+            <td>{{ row['leavetype'] }}</td>
+        
+            <td>{{ row['fromdate'] }}</td>
+        
             <td>
-                {% if row['Leave Type'] == 'Leave' %}
-                    {{ row['To Date'] }}
+                {% if row['leavetype'] == 'Leave' %}
+                    {{ row['todate'] }}
                 {% else %}
                     -
                 {% endif %}
             </td>
-
-            <td>{{ row['Place'] }}</td>
-            <td>{{ row['Reason'] }}</td>
-
+        
+            <td>{{ row['place'] }}</td>
+            <td>{{ row['reason'] }}</td>
+        
             <!-- 🎯 STATUS -->
             <td>
-                {% if row['Status'] == 'Approved' %}
+                {% if row['status'] == 'Approved' %}
                     <span class="status approved">Approved</span>
-                {% elif row['Status'] == 'Pending' %}
+                {% elif row['status'] == 'Pending' %}
                     <span class="status pending">Pending</span>
                 {% else %}
                     <span class="status rejected">Rejected</span>
                 {% endif %}
             </td>
-
+        
             <!-- 🔳 QR -->
             <td>
                 {% if row['status'] == 'Approved' and row['qrfile'] %}
-                    {% set today = now().date() %}
-                    {% if row['todate'] and row['todate'] != '-' and row['todate'] < today|string %}
-                        ❌ Expired
-                    {% else %}
-                        <span class="qr-link"
-                            onclick="openModal(
-                            '{{ url_for('static', filename=row['qrfile']) }}',
-                            '{{ row['regno'] }}',
-                            '{{ row['leavetype'] }}',
-                            '{{ row['fromdate'] }}')">
-                            View QR
-                        </span>
-                    {% endif %}
+                    <span class="qr-link"
+                        onclick="openModal(
+                        '{{ url_for('static', filename=row['qrfile']) }}',
+                        '{{ row['regno'] }}',
+                        '{{ row['leavetype'] }}',
+                        '{{ row['fromdate'] }}')">
+                        View QR
+                    </span>
                 {% else %}
                     -
                 {% endif %}
             </td>
-
+        
         </tr>
         {% endfor %}
     </table>
