@@ -119,17 +119,16 @@
 
         {% for row in records %}
         <tr>
-            <td><img src="{{ url_for('static', filename=row['Photo']) }}"></td>
-            <td>{{ row['Name'] }}</td>
-            <td>{{ row['RegNo'] }}</td>
-            <td>{{ row['LeaveType'] }}</td>
-            <td>{{ row['FromDate'] }}</td>
-            <td>{{ row['ToDate'] }}</td>
-        
-            <td class="statusCell">{{ row['Status'] }}</td>
+            <td><img src="{{ url_for('static', filename=row['photo']) }}" onerror="this.src='/static/default.png'"></td>
+            <td>{{ row['name'] }}</td>
+            <td>{{ row['regno'] }}</td>
+            <td>{{ row['leavetype'] }}</td>
+            <td>{{ row['fromdate'] }}</td>
+            <td>{{ row['todate'] }}</td>
+            <td class="statusCell">{{ row['status'] }}</td>
         
             <td>
-                {% if row['Status'] == 'Pending' %}
+                {% if row['status'] == 'Pending' %}
                     <button class="btn approve" onclick="approve({{ row['id'] }}, this)">Approve</button>
                     <button class="btn reject" onclick="reject({{ row['id'] }}, this)">Reject</button>
                 {% else %}
@@ -153,7 +152,8 @@ function filterTable() {
         if (i === 0) return;
 
         let text = row.innerText.toLowerCase();
-        let statusCell = row.querySelector(".statusCell").innerText;
+        let statusCellElement = row.querySelector(".statusCell");
+        let statusCell = statusCellElement ? statusCellElement.innerText : "";
 
         let matchSearch = text.includes(search);
         let matchStatus = (status === "" || statusCell === status);
